@@ -1,0 +1,605 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+<title>하루 한 장, 역사</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Noto+Serif+KR:wght@400;700;900&family=Noto+Sans+KR:wght@300;400;500&family=Cormorant+Garamond:ital,wght@0,400;0,600;1,400&display=swap" rel="stylesheet">
+<style>
+*,*::before,*::after{margin:0;padding:0;box-sizing:border-box}
+:root{
+  --bg:#030306;
+  --card-bg:linear-gradient(164deg,#17181e 0%,#111217 24%,#0c0d11 58%,#08090d 100%);
+  --card-border:rgba(172,152,104,.16);
+  --gold:#c4a55a;
+  --gold-dim:rgba(196,165,90,.25);
+  --text-primary:#e7e1d7;
+  --text-secondary:#a79f90;
+  --text-muted:#716b65;
+}
+html,body{
+  width:100%;height:100%;overflow:hidden;
+  background:var(--bg);
+  font-family:'Noto Sans KR','Noto Serif KR',serif;
+  color:var(--text-primary);
+  -webkit-font-smoothing:antialiased;
+}
+#globe-canvas{
+  position:fixed;inset:0;z-index:0;
+  width:100%;height:100%;
+  pointer-events:auto;
+}
+.overlay{
+  position:fixed;inset:0;z-index:1;
+  background:
+    radial-gradient(ellipse 78% 64% at 50% 48%, transparent 18%, rgba(4,5,10,.20) 48%, rgba(3,3,8,.62) 100%),
+    linear-gradient(180deg, rgba(8,11,20,.10) 0%, rgba(3,3,8,.38) 100%);
+  pointer-events:none;
+}
+#card-container{
+  position:fixed;inset:0;z-index:10;
+  display:flex;align-items:center;justify-content:center;
+  pointer-events:none;
+  perspective:2000px;
+}
+.card-wrapper{
+  --rx:0deg;
+  --ry:0deg;
+  --mx:50%;
+  --my:50%;
+  pointer-events:auto;
+  width:min(296px, 68vw);
+  aspect-ratio:5/7.2;
+  cursor:pointer;
+  transform-style:preserve-3d;
+  transform:rotateX(var(--rx)) rotateY(var(--ry));
+  transition:transform .34s cubic-bezier(.16,1,.3,1);
+  -webkit-tap-highlight-color:transparent;
+  will-change:transform;
+}
+.card-shell{
+  position:relative;
+  width:100%;height:100%;
+  transform-style:preserve-3d;
+  animation:cardFloat 7.2s ease-in-out infinite;
+  filter:drop-shadow(0 28px 58px rgba(0,0,0,.42));
+  transition:filter .42s cubic-bezier(.16,1,.3,1), transform .42s cubic-bezier(.16,1,.3,1);
+}
+.card-wrapper:hover .card-shell{filter:brightness(1.03) drop-shadow(0 34px 72px rgba(0,0,0,.52));}
+.card-wrapper.flipped .card-inner{transform:rotateY(180deg);}
+.card-inner{
+  position:relative;width:100%;height:100%;
+  transform-style:preserve-3d;
+  transition:transform 1.16s cubic-bezier(.22,1,.2,1);
+  will-change:transform;
+}
+.card-face{
+  position:absolute;inset:0;
+  backface-visibility:hidden;
+  -webkit-backface-visibility:hidden;
+  border-radius:15px;
+  overflow:hidden;
+}
+.card-front,.card-back{
+  background:var(--card-bg);
+  border:1px solid var(--card-border);
+  box-shadow:
+    0 1px 2px rgba(0,0,0,.72),
+    0 6px 12px rgba(0,0,0,.54),
+    0 18px 36px rgba(0,0,0,.42),
+    0 34px 72px rgba(0,0,0,.28),
+    inset 0 1px 0 rgba(255,255,255,.035),
+    inset 0 -1px 0 rgba(0,0,0,.42),
+    inset 1px 0 0 rgba(255,255,255,.018),
+    inset -1px 0 0 rgba(255,255,255,.018);
+}
+/* album-like layered lacquer feel */
+.card-front::before,.card-back::before{
+  content:'';position:absolute;inset:0;border-radius:15px;pointer-events:none;
+  background:
+    radial-gradient(circle at 22% 14%, rgba(255,255,255,.065), transparent 22%),
+    radial-gradient(circle at 78% 8%, rgba(255,255,255,.030), transparent 18%),
+    linear-gradient(176deg,rgba(255,255,255,.028) 0%, transparent 28%, transparent 78%, rgba(0,0,0,.14) 100%),
+    repeating-linear-gradient(0deg, transparent, transparent 1px, rgba(255,255,255,.0045) 1px, rgba(255,255,255,.0045) 2px);
+}
+.card-front::after,.card-back::after{
+  content:'';position:absolute;
+  top:9px;left:9px;right:9px;bottom:9px;
+  border:1px solid rgba(188,165,108,.06);
+  border-radius:9px;pointer-events:none;
+  box-shadow:inset 0 0 28px rgba(255,255,255,.015);
+}
+.card-front{
+  display:flex;flex-direction:column;justify-content:space-between;
+  padding:clamp(22px,4.0vw,32px) clamp(20px,3.6vw,28px);
+}
+.card-back{
+  transform:rotateY(180deg);
+  display:flex;flex-direction:column;justify-content:center;
+  padding:clamp(22px,4.0vw,32px) clamp(19px,3.5vw,27px);
+}
+.front-top{text-align:center;}
+.display-time{
+  font-family:'Cormorant Garamond','Noto Serif KR',serif;
+  font-size:clamp(10px,2vw,12px);
+  color:var(--gold);letter-spacing:.16em;
+  text-transform:uppercase;opacity:.78;
+}
+.year-badge{
+  margin-top:5px;
+  font-family:'Cormorant Garamond','Noto Serif KR',serif;
+  font-size:clamp(18px,3.2vw,23px);
+  font-weight:600;
+  color:rgba(214,186,123,.34);
+  letter-spacing:.18em;
+  text-shadow:0 1px 0 rgba(255,255,255,.04), 0 0 18px rgba(196,165,90,.08);
+}
+.front-center{
+  flex:1;display:flex;align-items:center;justify-content:center;
+  padding:12px 0;
+}
+.title-line{
+  font-family:'Noto Serif KR',serif;
+  font-size:clamp(13.5px,2.8vw,17px);
+  font-weight:700;line-height:1.76;
+  text-align:center;color:var(--text-primary);
+  word-break:keep-all;
+  text-shadow:0 1px 0 rgba(255,255,255,.02);
+}
+.front-bottom{text-align:center;}
+.event-short{
+  font-family:'Noto Sans KR',sans-serif;
+  font-size:clamp(9.8px,1.95vw,11.6px);
+  font-weight:300;color:var(--text-secondary);
+  line-height:1.66;word-break:keep-all;
+}
+.divider-line{width:30px;height:1px;background:linear-gradient(90deg,transparent, var(--gold-dim), transparent);margin:9px auto;}
+.flip-hint{
+  font-size:8.8px;color:var(--text-muted);
+  letter-spacing:.08em;opacity:.44;margin-top:6px;
+}
+.back-label,.meaning-label{
+  font-family:'Cormorant Garamond','Noto Serif KR',serif;
+  font-size:clamp(9.3px,1.85vw,10.8px);
+  color:var(--gold);letter-spacing:.15em;opacity:.62;
+}
+.back-label{margin-bottom:11px;}
+.context-text{
+  font-family:'Noto Sans KR',sans-serif;
+  font-size:clamp(11.4px,2.25vw,13.1px);
+  font-weight:400;line-height:1.83;
+  color:var(--text-primary);word-break:keep-all;
+  margin-bottom:21px;
+}
+.meaning-label{margin-bottom:8px;}
+.meaning-text{
+  font-family:'Noto Serif KR',serif;
+  font-size:clamp(11.6px,2.25vw,13.1px);
+  font-weight:400;line-height:1.83;
+  color:var(--text-secondary);word-break:keep-all;
+  font-style:italic;
+}
+.back-flip-hint{
+  text-align:center;font-size:8.8px;
+  color:var(--text-muted);letter-spacing:.08em;
+  opacity:.40;margin-top:18px;
+}
+@keyframes cardFloat{
+  0%,100%{transform:translateY(0) translateZ(0)}
+  50%{transform:translateY(-6px) translateZ(10px)}
+}
+#loading{
+  position:fixed;inset:0;z-index:100;
+  background:var(--bg);
+  display:flex;align-items:center;justify-content:center;
+  flex-direction:column;gap:14px;
+  transition:opacity .8s ease;
+}
+#loading.fade-out{opacity:0;pointer-events:none;}
+#loading .spinner{
+  width:22px;height:22px;
+  border:1.5px solid rgba(196,165,90,.1);
+  border-top-color:rgba(196,165,90,.5);
+  border-radius:50%;animation:spin 1s linear infinite;
+}
+@keyframes spin{to{transform:rotate(360deg)}}
+#loading .load-text{
+  font-family:'Cormorant Garamond',serif;
+  font-size:11px;color:var(--text-muted);
+  letter-spacing:.2em;opacity:.5;
+}
+@media(max-width:480px){
+  .card-wrapper{width:76vw;aspect-ratio:5/7.45;}
+  .title-line{font-size:clamp(13px,3.2vw,15.5px);}
+}
+</style>
+</head>
+<body>
+<div id="loading"><div class="spinner"></div><div class="load-text">LOADING</div></div>
+<canvas id="globe-canvas"></canvas>
+<div class="overlay"></div>
+<div id="card-container"></div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/loaders/GLTFLoader.js"></script>
+<script>
+const EMBED_FALLBACK_CARDS = [
+  {"dateKey":"04-10","displayTime":"7년 전 오늘","titleLine":"보이지 않던 것도, 끝까지 포기하지 않으면 결국 찍힌다.","eventShort":"과학자들이 인류 최초로 블랙홀 이미지를 공개했다.","context":"사람들은 오래도록 블랙홀을 수식으로만 붙잡고 있었다. 하지만 전 세계 전파망원경을 엮어낸 협업은, 이론만 있던 대상을 실제 이미지로 끌어내렸다.","meaningNow":"지금 우리가 당연하게 믿는 과학의 진전도 대개 한 사람의 천재보다 연결된 집요함에서 나온다.","year":2019},
+  {"dateKey":"04-11","displayTime":"56년 전 오늘","titleLine":"기술은 완벽해서 위대한 게 아니라, 무너질 때 사람을 살릴 수 있어야 위대하다.","eventShort":"아폴로 13호가 발사됐다.","context":"아폴로 13호는 달 착륙에는 실패했지만, 고장 난 우주선을 귀환시킨 판단과 즉흥적 설계는 재난 대응의 교과서가 됐다.","meaningNow":"지금도 좋은 시스템은 실패하지 않는 시스템이 아니라, 실패해도 전부 끝나지 않게 설계된 시스템이다.","year":1970},
+  {"dateKey":"04-12","displayTime":"65년 전 오늘","titleLine":"세상은 어느 날 갑자기 넓어지지만, 그 넓어짐 뒤에는 늘 국가와 기술과 경쟁이 같이 붙어 있다.","eventShort":"유리 가가린이 인류 최초로 우주에 올랐다.","context":"가가린의 비행은 인류의 시야를 우주까지 밀어 올렸다. 동시에 냉전 경쟁이 과학을 어떻게 밀어붙이는지도 보여줬다.","meaningNow":"지금의 기술 진보도 꿈만으로 오지 않는다. 자본, 안보, 경쟁이 늘 함께 움직인다.","year":1961}
+];
+
+let CARD_DATA = EMBED_FALLBACK_CARDS.slice();
+
+function getTodayCard(){
+  const now=new Date();
+  const mm=String(now.getMonth()+1).padStart(2,'0');
+  const dd=String(now.getDate()).padStart(2,'0');
+  const todayKey=mm+'-'+dd;
+  let card=CARD_DATA.find(c=>c.dateKey===todayKey);
+  if(card)return card;
+  const todayNum=parseInt(mm)*100+parseInt(dd);
+  let best=null,bestDist=Infinity;
+  for(const c of CARD_DATA){
+    const[m,d]=c.dateKey.split('-').map(Number);
+    const num=m*100+d;
+    const dist=todayNum-num;
+    if(dist>=0&&dist<bestDist){bestDist=dist;best=c;}
+  }
+  if(best)return best;
+  bestDist=Infinity;
+  for(const c of CARD_DATA){
+    const[m,d]=c.dateKey.split('-').map(Number);
+    const num=m*100+d;
+    const dist=num-todayNum;
+    if(dist>=0&&dist<bestDist){bestDist=dist;best=c;}
+  }
+  return best||CARD_DATA[0];
+}
+
+
+function formatCardFullDate(card){
+  if(!card) return '';
+  const y = String(card.year || '').trim();
+  const key = String(card.dateKey || '').trim();
+  if(!y || !key || !key.includes('-')) return y || '';
+  const [mm, dd] = key.split('-');
+  return `${y}.${mm}.${dd}`;
+}
+
+function renderCard(card){
+  const container=document.getElementById('card-container');
+  container.innerHTML=`
+  <div class="card-wrapper" id="cardWrapper">
+    <div class="card-shell">
+      <div class="card-inner">
+        <div class="card-face card-front">
+          <div class="front-top">
+            <div class="display-time">${card.displayTime||''}</div>
+            <div class="year-badge">${formatCardFullDate(card)}</div>
+          </div>
+          <div class="front-center">
+            <div class="title-line">${card.titleLine||''}</div>
+          </div>
+          <div class="front-bottom">
+            <div class="divider-line"></div>
+            <div class="event-short">${card.eventShort||''}</div>
+            <div class="flip-hint">탭하여 뒤집기</div>
+          </div>
+        </div>
+        <div class="card-face card-back">
+          <div class="back-label">그때 무슨 일이</div>
+          <div class="context-text">${card.context||''}</div>
+          <div class="meaning-label">지금, 여기에서</div>
+          <div class="meaning-text">${card.meaningNow||''}</div>
+          <div class="back-flip-hint">탭하여 앞면으로</div>
+        </div>
+      </div>
+    </div>
+  </div>`;
+  const wrapper=document.getElementById('cardWrapper');
+  const shell=wrapper.querySelector('.card-shell');
+  let targetRX=0, targetRY=0, currentRX=0, currentRY=0;
+  let rafId=null;
+
+  function animateTilt(){
+    currentRX += (targetRX-currentRX)*0.12;
+    currentRY += (targetRY-currentRY)*0.12;
+    wrapper.style.setProperty('--rx', `${currentRX.toFixed(3)}deg`);
+    wrapper.style.setProperty('--ry', `${currentRY.toFixed(3)}deg`);
+    if(Math.abs(targetRX-currentRX)>0.02 || Math.abs(targetRY-currentRY)>0.02){
+      rafId=requestAnimationFrame(animateTilt);
+    }else{
+      rafId=null;
+    }
+  }
+  function requestTilt(){ if(!rafId) rafId=requestAnimationFrame(animateTilt); }
+
+  wrapper.addEventListener('click',()=>{
+    wrapper.classList.toggle('flipped');
+    shell.style.transform = wrapper.classList.contains('flipped') ? 'translateZ(12px) scale(1.013)' : 'translateZ(8px) scale(1.006)';
+    setTimeout(()=>{ shell.style.transform=''; }, 520);
+  });
+
+  wrapper.addEventListener('mousemove',e=>{
+    const rect=wrapper.getBoundingClientRect();
+    const x=(e.clientX-rect.left)/rect.width;
+    const y=(e.clientY-rect.top)/rect.height;
+    const depthBoost = wrapper.classList.contains('flipped') ? 1.06 : 1;
+    targetRY=(x-0.5)*8.6*depthBoost;
+    targetRX=(0.5-y)*7.2*depthBoost;
+    wrapper.style.setProperty('--mx', `${(x*100).toFixed(2)}%`);
+    wrapper.style.setProperty('--my', `${(y*100).toFixed(2)}%`);
+    requestTilt();
+  });
+  wrapper.addEventListener('mouseleave',()=>{
+    targetRX=0; targetRY=0;
+    wrapper.style.setProperty('--mx', '50%');
+    wrapper.style.setProperty('--my', '50%');
+    requestTilt();
+  });
+
+  wrapper.addEventListener('touchmove',e=>{
+    const t=e.touches && e.touches[0];
+    if(!t) return;
+    const rect=wrapper.getBoundingClientRect();
+    const x=(t.clientX-rect.left)/rect.width;
+    const y=(t.clientY-rect.top)/rect.height;
+    const depthBoost = wrapper.classList.contains('flipped') ? 1.06 : 1;
+    targetRY=(x-0.5)*7.4*depthBoost;
+    targetRX=(0.5-y)*6.2*depthBoost;
+    requestTilt();
+  }, {passive:true});
+}
+
+
+(async function boot(){
+  const loading=document.getElementById('loading');
+  function hideLoading(){
+    if(!loading || loading.classList.contains('fade-out')) return;
+    loading.classList.add('fade-out');
+    setTimeout(()=>loading.remove(),800);
+  }
+
+  try{
+    try{
+      const res=await fetch('./data/cards.json',{cache:'no-store'});
+      if(res.ok){
+        const json=await res.json();
+        if(Array.isArray(json)&&json.length) CARD_DATA=json;
+      }
+    }catch(err){
+      console.warn('cards.json load failed, using fallback data.', err);
+    }
+
+    const card=getTodayCard();
+    if(card) renderCard(card);
+
+    const safetyHide = setTimeout(hideLoading, 9000);
+    initGlobe(() => {
+      clearTimeout(safetyHide);
+      hideLoading();
+    });
+  }catch(err){
+    console.error(err);
+    hideLoading();
+  }
+})();
+
+function initGlobe(onReady){
+  const canvas=document.getElementById('globe-canvas');
+  const renderer=new THREE.WebGLRenderer({canvas,antialias:true,alpha:false});
+  renderer.setPixelRatio(Math.min(window.devicePixelRatio,2));
+  renderer.setSize(window.innerWidth,window.innerHeight);
+  renderer.setClearColor(0x020206,1);
+  renderer.outputEncoding = THREE.sRGBEncoding;
+
+  const scene=new THREE.Scene();
+  scene.fog = new THREE.FogExp2(0x05060c, 0.028);
+
+  const camera=new THREE.PerspectiveCamera(42,window.innerWidth/window.innerHeight,.1,200);
+  camera.position.set(0,0.06,4.8);
+
+  const hour=new Date().getHours();
+  let mode='night';
+  if(hour>=5&&hour<8)mode='twilight';
+  else if(hour>=8&&hour<16)mode='day';
+  else if(hour>=16&&hour<19)mode='twilight';
+
+  const paletteByMode = {
+    day:{bg:0x090d16, hemiSky:0xb8d3ff, hemiGround:0x141820, hemiI:1.02, amb:0xffffff, ambI:0.60, key:0xf6f0df, keyI:1.28, fill:0x8eb5ff, fillI:0.54, rim:0xdce8ff, rimI:0.84},
+    twilight:{bg:0x0a0812, hemiSky:0xc39cff, hemiGround:0x18131b, hemiI:1.06, amb:0xffffff, ambI:0.62, key:0xffd5a8, keyI:1.34, fill:0x9eb3ff, fillI:0.58, rim:0xcfe0ff, rimI:0.90},
+    night:{bg:0x04050b, hemiSky:0x6f83b7, hemiGround:0x0f1118, hemiI:0.98, amb:0xffffff, ambI:0.58, key:0xbfd5ff, keyI:1.22, fill:0x7f97d2, fillI:0.46, rim:0xd6e0ff, rimI:0.82}
+  };
+  const p = paletteByMode[mode];
+  renderer.setClearColor(p.bg,1);
+
+  function makeStarLayer(count,size,opacity,rMin,rMax,color){
+    const geo=new THREE.BufferGeometry();
+    const pos=new Float32Array(count*3);
+    for(let i=0;i<count;i++){
+      const theta=Math.random()*Math.PI*2;
+      const phi=Math.acos(2*Math.random()-1);
+      const r=rMin+Math.random()*(rMax-rMin);
+      pos[i*3]=r*Math.sin(phi)*Math.cos(theta);
+      pos[i*3+1]=r*Math.sin(phi)*Math.sin(theta);
+      pos[i*3+2]=r*Math.cos(phi);
+    }
+    geo.setAttribute('position',new THREE.BufferAttribute(pos,3));
+    const mat=new THREE.PointsMaterial({color,size,sizeAttenuation:true,transparent:true,opacity});
+    return new THREE.Points(geo,mat);
+  }
+
+  const nebulaGeo = new THREE.SphereGeometry(26, 32, 32);
+  const nebulaMat = new THREE.ShaderMaterial({
+    side:THREE.BackSide,
+    transparent:true,
+    depthWrite:false,
+    uniforms:{uMode:{value:mode==='day'?0:(mode==='twilight'?1:2)}},
+    vertexShader:`varying vec3 vPos; void main(){ vPos=position; gl_Position=projectionMatrix*modelViewMatrix*vec4(position,1.0); }`,
+    fragmentShader:`
+      uniform int uMode; varying vec3 vPos;
+      float hash(vec2 p){return fract(sin(dot(p,vec2(127.1,311.7)))*43758.5453123);}
+      float noise(vec2 p){
+        vec2 i=floor(p),f=fract(p); f=f*f*(3.0-2.0*f);
+        return mix(mix(hash(i),hash(i+vec2(1.,0.)),f.x),mix(hash(i+vec2(0.,1.)),hash(i+vec2(1.,1.)),f.x),f.y);
+      }
+      float fbm(vec2 p){ float v=0.0; float a=0.5; for(int i=0;i<5;i++){ v+=a*noise(p); p*=2.03; a*=0.52; } return v; }
+      void main(){
+        vec3 dir=normalize(vPos);
+        vec2 uv=dir.xy*0.9+dir.zy*0.35;
+        float n=fbm(uv*3.2);
+        float glow=smoothstep(0.48,0.88,n) * 0.12;
+        vec3 col=vec3(0.03,0.05,0.10);
+        if(uMode==1) col=vec3(0.07,0.04,0.12);
+        if(uMode==2) col=vec3(0.02,0.03,0.08);
+        gl_FragColor=vec4(col, glow);
+      }
+    `
+  });
+  scene.add(new THREE.Mesh(nebulaGeo, nebulaMat));
+
+  scene.add(makeStarLayer(2600,.012,.12,28,58,0x9ca8d9));
+  scene.add(makeStarLayer(1100,.020,.22,22,48,0xd8dff2));
+  scene.add(makeStarLayer(220,.036,.48,18,34,0xf3f5ff));
+  const brightStars = makeStarLayer(24,.068,.82,16,28,0xffffff);
+  scene.add(brightStars);
+  scene.add(makeStarLayer(18,.045,.26,19,34,0xffd4a8));
+  scene.add(makeStarLayer(16,.045,.22,19,34,0xaed0ff));
+
+  const ambient = new THREE.AmbientLight(p.amb, p.ambI);
+  scene.add(ambient);
+  const hemi = new THREE.HemisphereLight(p.hemiSky, p.hemiGround, p.hemiI);
+  hemi.position.set(0, 2.4, 0);
+  scene.add(hemi);
+  const key = new THREE.DirectionalLight(p.key, p.keyI);
+  key.position.set(3.2, 1.5, 4.6);
+  scene.add(key);
+  const fill = new THREE.DirectionalLight(p.fill, p.fillI);
+  fill.position.set(-2.8, -0.3, 2.1);
+  scene.add(fill);
+  const rim = new THREE.DirectionalLight(p.rim, p.rimI);
+  rim.position.set(-3.4, 1.0, -3.0);
+  scene.add(rim);
+
+  const globeGroup = new THREE.Group();
+  globeGroup.position.set(0, 0.04, -0.34);
+  scene.add(globeGroup);
+
+  let globeObject = null;
+  let fallbackObject = null;
+  let readyNotified = false;
+  const loader = new THREE.GLTFLoader();
+  const pathMap = {
+    day:'./assets/earth_day.glb',
+    twilight:'./assets/earth_twilight.glb',
+    night:'./assets/earth_night.glb'
+  };
+
+  function notifyReady(){
+    if(readyNotified) return;
+    readyNotified = true;
+    if(typeof onReady === 'function') onReady();
+  }
+
+  function addFallbackSphere(){
+    const geom = new THREE.SphereGeometry(1.74, 96, 96);
+    const mat = new THREE.MeshPhysicalMaterial({
+      color: mode==='day' ? 0x6c8fd0 : mode==='twilight' ? 0x8b63a8 : 0x4964a2,
+      metalness:0.12,
+      roughness:0.68,
+      clearcoat:0.18,
+      clearcoatRoughness:0.55,
+      sheen:0.5,
+      sheenColor:new THREE.Color(0xbcd3ff)
+    });
+    const mesh = new THREE.Mesh(geom, mat);
+    globeGroup.add(mesh);
+    fallbackObject = mesh;
+    globeObject = mesh;
+  }
+
+  loader.load(pathMap[mode], (gltf)=>{
+    if(fallbackObject){ globeGroup.remove(fallbackObject); fallbackObject = null; }
+    globeGroup.clear();
+    globeObject = gltf.scene;
+    const box = new THREE.Box3().setFromObject(globeObject);
+    const size = box.getSize(new THREE.Vector3());
+    const maxDim = Math.max(size.x,size.y,size.z) || 1;
+    const scale = 3.86 / maxDim;
+    globeObject.scale.setScalar(scale);
+    box.setFromObject(globeObject);
+    const center = box.getCenter(new THREE.Vector3());
+    globeObject.position.sub(center);
+    globeObject.traverse((obj)=>{
+      if(obj.isMesh){
+        obj.castShadow = false;
+        obj.receiveShadow = false;
+        const m = obj.material;
+        if(m){
+          if(Array.isArray(m)) m.forEach(tuneMat); else tuneMat(m);
+        }
+      }
+    });
+    globeGroup.add(globeObject);
+    notifyReady();
+  }, undefined, (err)=>{
+    console.warn('GLB load failed, using fallback sphere after load error.', err);
+    addFallbackSphere();
+    notifyReady();
+  });
+
+  function tuneMat(mat){
+    if('metalness' in mat) mat.metalness = Math.max(mat.metalness || 0, 0.04);
+    if('roughness' in mat) mat.roughness = Math.min(mat.roughness || 1, 0.82);
+    if('envMapIntensity' in mat) mat.envMapIntensity = 1.45;
+    mat.needsUpdate = true;
+  }
+
+  let isDragging=false,prevMouse={x:0,y:0};
+  let velocity={x:0.00036,y:0};
+  const damping=0.972,sensitivity=0.00215;
+
+  function getPointer(e){
+    return e.touches?{x:e.touches[0].clientX,y:e.touches[0].clientY}:{x:e.clientX,y:e.clientY};
+  }
+  function isOnCard(e){
+    const card=document.getElementById('cardWrapper');
+    if(!card)return false;
+    const r=card.getBoundingClientRect();
+    const p=e.touches?{x:e.touches[0].clientX,y:e.touches[0].clientY}:{x:e.clientX,y:e.clientY};
+    return p.x>=r.left&&p.x<=r.right&&p.y>=r.top&&p.y<=r.bottom;
+  }
+  canvas.addEventListener('mousedown',e=>{if(!isOnCard(e)){isDragging=true;prevMouse=getPointer(e);}});
+  canvas.addEventListener('touchstart',e=>{if(!isOnCard(e)){isDragging=true;prevMouse=getPointer(e);}},{passive:true});
+  window.addEventListener('mousemove',e=>{if(!isDragging)return;const p=getPointer(e);velocity.x=(p.x-prevMouse.x)*sensitivity;velocity.y=(p.y-prevMouse.y)*sensitivity;prevMouse=p;});
+  window.addEventListener('touchmove',e=>{if(!isDragging)return;const p=getPointer(e);velocity.x=(p.x-prevMouse.x)*sensitivity;velocity.y=(p.y-prevMouse.y)*sensitivity;prevMouse=p;},{passive:true});
+  window.addEventListener('mouseup',()=>{isDragging=false;});
+  window.addEventListener('touchend',()=>{isDragging=false;});
+
+  window.addEventListener('resize',()=>{
+    camera.aspect=window.innerWidth/window.innerHeight;
+    camera.updateProjectionMatrix();
+    renderer.setSize(window.innerWidth,window.innerHeight);
+  });
+
+  let time=0;
+  function animate(){
+    requestAnimationFrame(animate);
+    time+=0.016;
+    if(!isDragging){
+      velocity.x*=damping;velocity.y*=damping;
+      velocity.x+=(0.00036-velocity.x)*0.0018;
+    }
+    globeGroup.rotation.y+=velocity.x;
+    globeGroup.rotation.x+=velocity.y;
+    globeGroup.rotation.x=Math.max(-0.50,Math.min(0.50,globeGroup.rotation.x));
+    brightStars.material.opacity=0.76+Math.sin(time*0.72)*0.10;
+    renderer.render(scene,camera);
+  }
+  animate();
+}
+</script>
+</body>
+</html>
