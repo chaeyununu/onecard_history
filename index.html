@@ -36,6 +36,12 @@ html,body{
     radial-gradient(ellipse 78% 64% at 50% 48%, transparent 18%, rgba(4,5,10,.20) 48%, rgba(3,3,8,.62) 100%),
     linear-gradient(180deg, rgba(8,11,20,.10) 0%, rgba(3,3,8,.38) 100%);
   pointer-events:none;
+  transition:opacity .6s ease, background .6s ease;
+}
+.overlay.sky-active{
+  background:
+    radial-gradient(ellipse 78% 64% at 50% 48%, transparent 24%, rgba(4,5,10,.10) 56%, rgba(3,3,8,.22) 100%),
+    linear-gradient(180deg, rgba(8,11,20,.04) 0%, rgba(3,3,8,.16) 100%);
 }
 #card-container{
   position:fixed;inset:0;z-index:10;
@@ -389,28 +395,38 @@ function renderCard(card){
 
 function initGlobe(onReady){
   const canvas=document.getElementById('globe-canvas');
+  const overlay=document.querySelector('.overlay');
   const renderer=new THREE.WebGLRenderer({canvas,antialias:true,alpha:false});
-  renderer.setPixelRatio(Math.min(window.devicePixelRatio,2));
+  renderer.setPixelRatio(Math.min(window.devicePixelRatio, 1.8));
   renderer.setSize(window.innerWidth,window.innerHeight);
   renderer.setClearColor(0x020206,1);
   renderer.outputEncoding = THREE.sRGBEncoding;
 
   const scene=new THREE.Scene();
-  scene.fog = new THREE.FogExp2(0x05060c, 0.028);
+  scene.fog = new THREE.FogExp2(0x05060c, 0.018);
 
-  const camera=new THREE.PerspectiveCamera(42,window.innerWidth/window.innerHeight,.1,200);
-  camera.position.set(0,0.06,4.8);
+  const camera=new THREE.PerspectiveCamera(42,window.innerWidth/window.innerHeight,.1,300);
+  camera.position.set(0,0,0);
+  scene.add(camera);
 
   const hour=new Date().getHours();
   let mode='night';
-  if(hour>=5&&hour<8)mode='twilight';
-  else if(hour>=8&&hour<16)mode='day';
-  else if(hour>=16&&hour<19)mode='twilight';
+  if(hour>=5&&hour<8) mode='twilight';
+  else if(hour>=8&&hour<16) mode='day';
+  else if(hour>=16&&hour<19) mode='twilight';
+
+  // 기존 코드 기준으로 오후 3시(15시)는 day 모드였고, 원래 earth_day.glb를 썼음.
+  // 요청대로 day 시간대는 earth.glb를 사용.
+  const earthPathMap = {
+    day:'./assets/earth.glb',
+    twilight:'./assets/earth_twilight.glb',
+    night:'./assets/earth_night.glb'
+  };
 
   const paletteByMode = {
-    day:{bg:0x090d16, hemiSky:0xb8d3ff, hemiGround:0x141820, hemiI:1.02, amb:0xffffff, ambI:0.60, key:0xf6f0df, keyI:1.28, fill:0x8eb5ff, fillI:0.54, rim:0xdce8ff, rimI:0.84},
-    twilight:{bg:0x0a0812, hemiSky:0xc39cff, hemiGround:0x18131b, hemiI:1.06, amb:0xffffff, ambI:0.62, key:0xffd5a8, keyI:1.34, fill:0x9eb3ff, fillI:0.58, rim:0xcfe0ff, rimI:0.90},
-    night:{bg:0x04050b, hemiSky:0x6f83b7, hemiGround:0x0f1118, hemiI:0.98, amb:0xffffff, ambI:0.58, key:0xbfd5ff, keyI:1.22, fill:0x7f97d2, fillI:0.46, rim:0xd6e0ff, rimI:0.82}
+    day:{bg:0x090d16, hemiSky:0xb8d3ff, hemiGround:0x141820, hemiI:0.95, amb:0xffffff, ambI:0.52, key:0xf6f0df, keyI:1.16, fill:0x8eb5ff, fillI:0.44, rim:0xdce8ff, rimI:0.72},
+    twilight:{bg:0x0a0812, hemiSky:0xc39cff, hemiGround:0x18131b, hemiI:1.00, amb:0xffffff, ambI:0.55, key:0xffd5a8, keyI:1.22, fill:0x9eb3ff, fillI:0.50, rim:0xcfe0ff, rimI:0.78},
+    night:{bg:0x04050b, hemiSky:0x6f83b7, hemiGround:0x0f1118, hemiI:0.92, amb:0xffffff, ambI:0.50, key:0xbfd5ff, keyI:1.08, fill:0x7f97d2, fillI:0.40, rim:0xd6e0ff, rimI:0.68}
   };
   const p = paletteByMode[mode];
   renderer.setClearColor(p.bg,1);
@@ -458,15 +474,19 @@ function initGlobe(onReady){
       }
     `
   });
-  scene.add(new THREE.Mesh(nebulaGeo, nebulaMat));
+  const nebulaMesh = new THREE.Mesh(nebulaGeo, nebulaMat);
+  scene.add(nebulaMesh);
 
-  scene.add(makeStarLayer(2600,.012,.12,28,58,0x9ca8d9));
-  scene.add(makeStarLayer(1100,.020,.22,22,48,0xd8dff2));
-  scene.add(makeStarLayer(220,.036,.48,18,34,0xf3f5ff));
+  const starLayers = [
+    makeStarLayer(2600,.012,.12,28,58,0x9ca8d9),
+    makeStarLayer(1100,.020,.22,22,48,0xd8dff2),
+    makeStarLayer(220,.036,.48,18,34,0xf3f5ff),
+    makeStarLayer(18,.045,.26,19,34,0xffd4a8),
+    makeStarLayer(16,.045,.22,19,34,0xaed0ff)
+  ];
+  starLayers.forEach(s=>scene.add(s));
   const brightStars = makeStarLayer(24,.068,.82,16,28,0xffffff);
   scene.add(brightStars);
-  scene.add(makeStarLayer(18,.045,.26,19,34,0xffd4a8));
-  scene.add(makeStarLayer(16,.045,.22,19,34,0xaed0ff));
 
   const ambient = new THREE.AmbientLight(p.amb, p.ambI);
   scene.add(ambient);
@@ -483,35 +503,83 @@ function initGlobe(onReady){
   rim.position.set(-3.4, 1.0, -3.0);
   scene.add(rim);
 
+  const skyGroup = new THREE.Group();
+  skyGroup.position.set(0,0,0);
+  scene.add(skyGroup);
+  let skyObject = null;
+
   const globeGroup = new THREE.Group();
-  globeGroup.position.set(0, 0.04, -0.34);
+  globeGroup.position.set(0, -0.04, -4.55);
   scene.add(globeGroup);
 
   let globeObject = null;
   let fallbackObject = null;
   let readyNotified = false;
   const loader = new THREE.GLTFLoader();
-  const pathMap = {
-    day:'./assets/earth_day.glb',
-    twilight:'./assets/earth_twilight.glb',
-    night:'./assets/earth_night.glb'
-  };
 
-  function notifyReady(){
-    if(readyNotified) return;
-    readyNotified = true;
-    if(typeof onReady === 'function') onReady();
+  const readiness = { sky:false, earth:false };
+  function markReady(kind){
+    readiness[kind] = true;
+    if(!readyNotified && readiness.sky && readiness.earth){
+      readyNotified = true;
+      if(typeof onReady === 'function') onReady();
+    }
   }
 
+  function setCosmicFallbackVisible(visible){
+    nebulaMesh.visible = visible;
+    starLayers.forEach(layer => layer.visible = visible);
+    brightStars.visible = visible;
+    if(overlay) overlay.classList.toggle('sky-active', !visible);
+  }
+
+  const skyPaths = ['./assets/sky1.glb','./assets/sky2.glb','./assets/sky3.glb'];
+  const skyPath = skyPaths[Math.floor(Math.random()*skyPaths.length)];
+
+  loader.load(skyPath, (gltf)=>{
+    skyGroup.clear();
+    skyObject = gltf.scene;
+    const box = new THREE.Box3().setFromObject(skyObject);
+    const size = box.getSize(new THREE.Vector3());
+    const maxDim = Math.max(size.x,size.y,size.z) || 1;
+    const scale = 22 / maxDim;
+    skyObject.scale.setScalar(scale);
+    box.setFromObject(skyObject);
+    const center = box.getCenter(new THREE.Vector3());
+    skyObject.position.sub(center);
+    skyObject.traverse((obj)=>{
+      if(obj.isMesh){
+        obj.frustumCulled = false;
+        if(obj.material){
+          const mats = Array.isArray(obj.material) ? obj.material : [obj.material];
+          mats.forEach(mat=>{
+            mat.side = THREE.DoubleSide;
+            if('toneMapped' in mat) mat.toneMapped = true;
+            if('transparent' in mat) mat.transparent = true;
+            if('depthWrite' in mat) mat.depthWrite = false;
+            mat.needsUpdate = true;
+          });
+        }
+      }
+    });
+    skyGroup.add(skyObject);
+    setCosmicFallbackVisible(false);
+    markReady('sky');
+  }, undefined, (err)=>{
+    console.warn('sky glb load failed, using existing nebula/stars fallback.', err);
+    setCosmicFallbackVisible(true);
+    markReady('sky');
+  });
+
   function addFallbackSphere(){
-    const geom = new THREE.SphereGeometry(1.74, 96, 96);
+    const geom = new THREE.SphereGeometry(1.62, 96, 96);
     const mat = new THREE.MeshPhysicalMaterial({
       color: mode==='day' ? 0x6c8fd0 : mode==='twilight' ? 0x8b63a8 : 0x4964a2,
-      metalness:0.12,
-      roughness:0.68,
-      clearcoat:0.18,
-      clearcoatRoughness:0.55,
-      sheen:0.5,
+      metalness:0.10,
+      roughness:0.72,
+      clearcoat:0.16,
+      clearcoatRoughness:0.58,
+      sheen:0.4,
       sheenColor:new THREE.Color(0xbcd3ff)
     });
     const mesh = new THREE.Mesh(geom, mat);
@@ -520,14 +588,14 @@ function initGlobe(onReady){
     globeObject = mesh;
   }
 
-  loader.load(pathMap[mode], (gltf)=>{
+  loader.load(earthPathMap[mode], (gltf)=>{
     if(fallbackObject){ globeGroup.remove(fallbackObject); fallbackObject = null; }
     globeGroup.clear();
     globeObject = gltf.scene;
     const box = new THREE.Box3().setFromObject(globeObject);
     const size = box.getSize(new THREE.Vector3());
     const maxDim = Math.max(size.x,size.y,size.z) || 1;
-    const scale = 3.86 / maxDim;
+    const scale = 3.45 / maxDim;
     globeObject.scale.setScalar(scale);
     box.setFromObject(globeObject);
     const center = box.getCenter(new THREE.Vector3());
@@ -543,23 +611,29 @@ function initGlobe(onReady){
       }
     });
     globeGroup.add(globeObject);
-    notifyReady();
+    markReady('earth');
   }, undefined, (err)=>{
-    console.warn('GLB load failed, using fallback sphere after load error.', err);
+    console.warn('Earth GLB load failed, using fallback sphere after load error.', err);
     addFallbackSphere();
-    notifyReady();
+    markReady('earth');
   });
 
   function tuneMat(mat){
-    if('metalness' in mat) mat.metalness = Math.max(mat.metalness || 0, 0.04);
-    if('roughness' in mat) mat.roughness = Math.min(mat.roughness || 1, 0.82);
-    if('envMapIntensity' in mat) mat.envMapIntensity = 1.45;
+    if('metalness' in mat) mat.metalness = Math.max(mat.metalness || 0, 0.03);
+    if('roughness' in mat) mat.roughness = Math.min(mat.roughness || 1, 0.84);
+    if('envMapIntensity' in mat) mat.envMapIntensity = 1.25;
+    if('toneMapped' in mat) mat.toneMapped = true;
     mat.needsUpdate = true;
   }
 
   let isDragging=false,prevMouse={x:0,y:0};
-  let velocity={x:0.00036,y:0};
+  let velocity={x:0.00032,y:0};
   const damping=0.972,sensitivity=0.00215;
+
+  let viewYaw = 0, viewPitch = 0;
+  let targetYaw = 0, targetPitch = 0;
+  const parallaxStrengthDesktop = 0.10;
+  const parallaxStrengthMobile = 0.18;
 
   function getPointer(e){
     return e.touches?{x:e.touches[0].clientX,y:e.touches[0].clientY}:{x:e.clientX,y:e.clientY};
@@ -571,10 +645,56 @@ function initGlobe(onReady){
     const p=e.touches?{x:e.touches[0].clientX,y:e.touches[0].clientY}:{x:e.clientX,y:e.clientY};
     return p.x>=r.left&&p.x<=r.right&&p.y>=r.top&&p.y<=r.bottom;
   }
+
+  function updatePointerParallax(clientX, clientY){
+    if(isDragging) return;
+    const nx = (clientX / window.innerWidth) - 0.5;
+    const ny = (clientY / window.innerHeight) - 0.5;
+    targetYaw = -nx * parallaxStrengthDesktop;
+    targetPitch = -ny * parallaxStrengthDesktop * 0.75;
+  }
+  window.addEventListener('mousemove', (e)=> updatePointerParallax(e.clientX, e.clientY), {passive:true});
+
+  let orientationGranted = false;
+  function bindDeviceOrientation(){
+    if(orientationGranted) return;
+    orientationGranted = true;
+    window.addEventListener('deviceorientation', (e)=>{
+      if(e.beta == null || e.gamma == null) return;
+      const beta = Math.max(-45, Math.min(45, e.beta || 0));
+      const gamma = Math.max(-35, Math.min(35, e.gamma || 0));
+      targetPitch = THREE.MathUtils.degToRad((beta / 45) * parallaxStrengthMobile * 38);
+      targetYaw = THREE.MathUtils.degToRad((gamma / 35) * parallaxStrengthMobile * 30);
+    }, true);
+  }
+
+  window.addEventListener('touchstart', async ()=>{
+    if (window.DeviceOrientationEvent && typeof window.DeviceOrientationEvent.requestPermission === 'function') {
+      try{
+        const res = await window.DeviceOrientationEvent.requestPermission();
+        if(res === 'granted') bindDeviceOrientation();
+      }catch(err){}
+    } else {
+      bindDeviceOrientation();
+    }
+  }, {passive:true, once:true});
+
   canvas.addEventListener('mousedown',e=>{if(!isOnCard(e)){isDragging=true;prevMouse=getPointer(e);}});
   canvas.addEventListener('touchstart',e=>{if(!isOnCard(e)){isDragging=true;prevMouse=getPointer(e);}},{passive:true});
-  window.addEventListener('mousemove',e=>{if(!isDragging)return;const p=getPointer(e);velocity.x=(p.x-prevMouse.x)*sensitivity;velocity.y=(p.y-prevMouse.y)*sensitivity;prevMouse=p;});
-  window.addEventListener('touchmove',e=>{if(!isDragging)return;const p=getPointer(e);velocity.x=(p.x-prevMouse.x)*sensitivity;velocity.y=(p.y-prevMouse.y)*sensitivity;prevMouse=p;},{passive:true});
+  window.addEventListener('mousemove',e=>{
+    if(!isDragging)return;
+    const p=getPointer(e);
+    velocity.x=(p.x-prevMouse.x)*sensitivity;
+    velocity.y=(p.y-prevMouse.y)*sensitivity;
+    prevMouse=p;
+  });
+  window.addEventListener('touchmove',e=>{
+    if(!isDragging)return;
+    const p=getPointer(e);
+    velocity.x=(p.x-prevMouse.x)*sensitivity;
+    velocity.y=(p.y-prevMouse.y)*sensitivity;
+    prevMouse=p;
+  },{passive:true});
   window.addEventListener('mouseup',()=>{isDragging=false;});
   window.addEventListener('touchend',()=>{isDragging=false;});
 
@@ -590,12 +710,18 @@ function initGlobe(onReady){
     time+=0.016;
     if(!isDragging){
       velocity.x*=damping;velocity.y*=damping;
-      velocity.x+=(0.00036-velocity.x)*0.0018;
+      velocity.x+=(0.00032-velocity.x)*0.0018;
     }
     globeGroup.rotation.y+=velocity.x;
     globeGroup.rotation.x+=velocity.y;
-    globeGroup.rotation.x=Math.max(-0.50,Math.min(0.50,globeGroup.rotation.x));
-    brightStars.material.opacity=0.76+Math.sin(time*0.72)*0.10;
+    globeGroup.rotation.x=Math.max(-0.42,Math.min(0.42,globeGroup.rotation.x));
+
+    viewYaw += (targetYaw - viewYaw) * 0.05;
+    viewPitch += (targetPitch - viewPitch) * 0.05;
+    camera.rotation.y = viewYaw;
+    camera.rotation.x = viewPitch;
+
+    if (brightStars.visible) brightStars.material.opacity=0.76+Math.sin(time*0.72)*0.10;
     renderer.render(scene,camera);
   }
   animate();
