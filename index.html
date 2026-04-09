@@ -242,9 +242,14 @@ html,body{
   letter-spacing:.2em;opacity:.5;
 }
 @media(max-width:480px){
-  .card-wrapper{width:76vw;aspect-ratio:5/7.45;}
-  .title-line{font-size:clamp(13px,3.2vw,15.5px);}
+  .card-wrapper{width:min(66vw,260px);aspect-ratio:5/7.45;}
+  .card-front{padding:20px 17px;}
+  .card-back{padding:20px 16px;}
+  .title-line{font-size:clamp(12.2px,3vw,14.8px);line-height:1.7;}
+  .event-short{font-size:clamp(9.2px,2vw,10.6px);line-height:1.58;}
+  .context-text,.meaning-text{line-height:1.72;}
 }
+
 </style>
 </head>
 <body>
@@ -469,6 +474,28 @@ function renderCard(card){
 function initGlobe(onReady){
   const canvas=document.getElementById('globe-canvas');
   const overlay=document.querySelector('.overlay');
+  const isMobileViewport = window.matchMedia('(max-width:480px)').matches;
+  const sceneConfig = isMobileViewport
+    ? {
+        cameraFov:48,
+        globeY:-0.12,
+        globeZ:-5.2,
+        globeScale:3.55,
+        fallbackRadius:1.34,
+        skyScale:44,
+        parallaxDesktop:0.08,
+        parallaxMobile:0.14
+      }
+    : {
+        cameraFov:42,
+        globeY:-0.04,
+        globeZ:-4.55,
+        globeScale:4.35,
+        fallbackRadius:1.62,
+        skyScale:38,
+        parallaxDesktop:0.10,
+        parallaxMobile:0.18
+      };
   const renderer=new THREE.WebGLRenderer({canvas,antialias:true,alpha:false});
   renderer.setPixelRatio(Math.min(window.devicePixelRatio, 1.8));
   renderer.setSize(window.innerWidth,window.innerHeight);
@@ -478,7 +505,7 @@ function initGlobe(onReady){
   const scene=new THREE.Scene();
   scene.fog = new THREE.FogExp2(0x05060c, 0.012);
 
-  const camera=new THREE.PerspectiveCamera(42,window.innerWidth/window.innerHeight,.1,400);
+  const camera=new THREE.PerspectiveCamera(sceneConfig.cameraFov,window.innerWidth/window.innerHeight,.1,400);
   camera.position.set(0,0,0);
   scene.add(camera);
 
@@ -582,7 +609,7 @@ function initGlobe(onReady){
   let skyObject = null;
 
   const globeGroup = new THREE.Group();
-  globeGroup.position.set(0, -0.04, -4.55);
+  globeGroup.position.set(0, sceneConfig.globeY, sceneConfig.globeZ);
   scene.add(globeGroup);
 
   let globeObject = null;
@@ -616,7 +643,7 @@ function initGlobe(onReady){
     const box = new THREE.Box3().setFromObject(skyObject);
     const size = box.getSize(new THREE.Vector3());
     const maxDim = Math.max(size.x,size.y,size.z) || 1;
-    const scale = 38 / maxDim;                        /* ← was 22, now 38 */
+    const scale = sceneConfig.skyScale / maxDim;
     skyObject.scale.setScalar(scale);
     box.setFromObject(skyObject);
     const center = box.getCenter(new THREE.Vector3());
@@ -646,7 +673,7 @@ function initGlobe(onReady){
   });
 
   function addFallbackSphere(){
-    const geom = new THREE.SphereGeometry(1.62, 96, 96);
+    const geom = new THREE.SphereGeometry(sceneConfig.fallbackRadius, 96, 96);
     const mat = new THREE.MeshPhysicalMaterial({
       color: mode==='day' ? 0x6c8fd0 : mode==='twilight' ? 0x8b63a8 : 0x4964a2,
       metalness:0.10,
@@ -669,7 +696,7 @@ function initGlobe(onReady){
     const box = new THREE.Box3().setFromObject(globeObject);
     const size = box.getSize(new THREE.Vector3());
     const maxDim = Math.max(size.x,size.y,size.z) || 1;
-    const scale = 4.35 / maxDim;
+    const scale = sceneConfig.globeScale / maxDim;
     globeObject.scale.setScalar(scale);
     box.setFromObject(globeObject);
     const center = box.getCenter(new THREE.Vector3());
@@ -706,8 +733,8 @@ function initGlobe(onReady){
 
   let viewYaw = 0, viewPitch = 0;
   let targetYaw = 0, targetPitch = 0;
-  const parallaxStrengthDesktop = 0.10;
-  const parallaxStrengthMobile = 0.18;
+  const parallaxStrengthDesktop = sceneConfig.parallaxDesktop;
+  const parallaxStrengthMobile = sceneConfig.parallaxMobile;
 
   function getPointer(e){
     return e.touches?{x:e.touches[0].clientX,y:e.touches[0].clientY}:{x:e.clientX,y:e.clientY};
