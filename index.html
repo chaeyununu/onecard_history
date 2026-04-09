@@ -73,13 +73,38 @@ html,body{
   transition:filter .42s cubic-bezier(.16,1,.3,1), transform .42s cubic-bezier(.16,1,.3,1);
 }
 .card-wrapper:hover .card-shell{filter:brightness(1.03) drop-shadow(0 34px 72px rgba(0,0,0,.52));}
+
+/* ── Flip: scaleX collapse/expand managed entirely by JS ── */
 .card-wrapper.flipped .card-inner{transform:rotateY(180deg);}
+
 .card-inner{
   position:relative;width:100%;height:100%;
   transform-style:preserve-3d;
-  transition:transform 1.16s cubic-bezier(.22,1,.2,1);
   will-change:transform;
 }
+
+/* Thin gold seam visible at collapsed midpoint */
+.card-inner::after{
+  content:'';
+  position:absolute;
+  inset:6px 0;
+  left:50%;width:2.5px;
+  margin-left:-1.25px;
+  background:linear-gradient(180deg,
+    transparent 2%,
+    rgba(196,165,90,.60) 22%,
+    rgba(255,244,210,.82) 50%,
+    rgba(196,165,90,.60) 78%,
+    transparent 98%
+  );
+  border-radius:2px;
+  opacity:0;
+  pointer-events:none;
+  z-index:50;
+  transition:opacity .12s ease;
+}
+.card-wrapper.flip-mid .card-inner::after{opacity:1;}
+
 .card-face{
   position:absolute;inset:0;
   backface-visibility:hidden;
@@ -100,7 +125,6 @@ html,body{
     inset 1px 0 0 rgba(255,255,255,.018),
     inset -1px 0 0 rgba(255,255,255,.018);
 }
-/* album-like layered lacquer feel */
 .card-front::before,.card-back::before{
   content:'';position:absolute;inset:0;border-radius:15px;pointer-events:none;
   background:
@@ -195,6 +219,8 @@ html,body{
   0%,100%{transform:translateY(0) translateZ(0)}
   50%{transform:translateY(-6px) translateZ(10px)}
 }
+
+
 #loading{
   position:fixed;inset:0;z-index:100;
   background:var(--bg);
@@ -264,7 +290,6 @@ function getTodayCard(){
   return best||CARD_DATA[0];
 }
 
-
 function formatCardFullDate(card){
   if(!card) return '';
   const y = String(card.year || '').trim();
@@ -306,8 +331,10 @@ function renderCard(card){
   </div>`;
   const wrapper=document.getElementById('cardWrapper');
   const shell=wrapper.querySelector('.card-shell');
+  const inner=wrapper.querySelector('.card-inner');
   let targetRX=0, targetRY=0, currentRX=0, currentRY=0;
   let rafId=null;
+  let isAnimating=false;
 
   function animateTilt(){
     currentRX += (targetRX-currentRX)*0.12;
@@ -322,12 +349,54 @@ function renderCard(card){
   }
   function requestTilt(){ if(!rafId) rafId=requestAnimationFrame(animateTilt); }
 
+  /* ── Flip: horizontal collapse → swap → expand ── */
   wrapper.addEventListener('click',()=>{
-    wrapper.classList.toggle('flipped');
-    shell.style.transform = wrapper.classList.contains('flipped') ? 'translateZ(12px) scale(1.013)' : 'translateZ(8px) scale(1.006)';
-    setTimeout(()=>{ shell.style.transform=''; }, 520);
+    if(isAnimating) return;
+    isAnimating=true;
+
+    const isFlipped=wrapper.classList.contains('flipped');
+    const currentRot=isFlipped ? 'rotateY(180deg) ' : '';
+    const targetRot=isFlipped ? '' : 'rotateY(180deg) ';
+
+    /* Phase 1 — collapse to thin edge */
+    shell.style.transition='transform .36s cubic-bezier(.42,0,.58,1), filter .36s ease';
+    shell.style.transform='translateY(-7px) translateZ(14px)';
+    shell.style.filter='brightness(1.03) drop-shadow(0 36px 76px rgba(0,0,0,.58))';
+
+    inner.style.transition='transform .36s cubic-bezier(.52,0,.9,.46)';
+    inner.style.transform=currentRot+'scaleX(0.018)';
+
+    /* Show gold seam at midpoint */
+    setTimeout(()=>{wrapper.classList.add('flip-mid');},280);
+
+    /* Phase 2 — swap face & expand back out */
+    setTimeout(()=>{
+      wrapper.classList.remove('flip-mid');
+
+      inner.style.transition='transform .46s cubic-bezier(.08,.72,.28,1)';
+      inner.style.transform=targetRot+'scaleX(1)';
+
+      shell.style.transition='transform .50s cubic-bezier(.16,1,.3,1), filter .50s ease';
+      shell.style.transform='';
+      shell.style.filter='';
+
+      /* Settle */
+      setTimeout(()=>{
+        inner.style.transition='';
+        if(isFlipped){
+          wrapper.classList.remove('flipped');
+          inner.style.transform='';
+        }else{
+          wrapper.classList.add('flipped');
+          inner.style.transform='rotateY(180deg)';
+        }
+        shell.style.transition='';
+        isAnimating=false;
+      },480);
+    },380);
   });
 
+  /* ── Tilt on hover (unchanged) ── */
   wrapper.addEventListener('mousemove',e=>{
     const rect=wrapper.getBoundingClientRect();
     const x=(e.clientX-rect.left)/rect.width;
@@ -345,7 +414,6 @@ function renderCard(card){
     wrapper.style.setProperty('--my', '50%');
     requestTilt();
   });
-
   wrapper.addEventListener('touchmove',e=>{
     const t=e.touches && e.touches[0];
     if(!t) return;
@@ -403,9 +471,9 @@ function initGlobe(onReady){
   renderer.outputEncoding = THREE.sRGBEncoding;
 
   const scene=new THREE.Scene();
-  scene.fog = new THREE.FogExp2(0x05060c, 0.018);
+  scene.fog = new THREE.FogExp2(0x05060c, 0.012);
 
-  const camera=new THREE.PerspectiveCamera(42,window.innerWidth/window.innerHeight,.1,300);
+  const camera=new THREE.PerspectiveCamera(42,window.innerWidth/window.innerHeight,.1,400);
   camera.position.set(0,0,0);
   scene.add(camera);
 
@@ -415,8 +483,6 @@ function initGlobe(onReady){
   else if(hour>=8&&hour<16) mode='day';
   else if(hour>=16&&hour<19) mode='twilight';
 
-  // 기존 코드 기준으로 오후 3시(15시)는 day 모드였고, 원래 earth_day.glb를 썼음.
-  // 요청대로 day 시간대는 earth.glb를 사용.
   const earthPathMap = {
     day:'./assets/earth.glb',
     twilight:'./assets/earth_twilight.glb',
@@ -447,7 +513,8 @@ function initGlobe(onReady){
     return new THREE.Points(geo,mat);
   }
 
-  const nebulaGeo = new THREE.SphereGeometry(26, 32, 32);
+  /* ── Nebula pushed further out ── */
+  const nebulaGeo = new THREE.SphereGeometry(44, 32, 32);
   const nebulaMat = new THREE.ShaderMaterial({
     side:THREE.BackSide,
     transparent:true,
@@ -466,7 +533,7 @@ function initGlobe(onReady){
         vec3 dir=normalize(vPos);
         vec2 uv=dir.xy*0.9+dir.zy*0.35;
         float n=fbm(uv*3.2);
-        float glow=smoothstep(0.48,0.88,n) * 0.12;
+        float glow=smoothstep(0.48,0.88,n) * 0.10;
         vec3 col=vec3(0.03,0.05,0.10);
         if(uMode==1) col=vec3(0.07,0.04,0.12);
         if(uMode==2) col=vec3(0.02,0.03,0.08);
@@ -477,15 +544,16 @@ function initGlobe(onReady){
   const nebulaMesh = new THREE.Mesh(nebulaGeo, nebulaMat);
   scene.add(nebulaMesh);
 
+  /* ── Stars pushed further out to match larger sky ── */
   const starLayers = [
-    makeStarLayer(2600,.012,.12,28,58,0x9ca8d9),
-    makeStarLayer(1100,.020,.22,22,48,0xd8dff2),
-    makeStarLayer(220,.036,.48,18,34,0xf3f5ff),
-    makeStarLayer(18,.045,.26,19,34,0xffd4a8),
-    makeStarLayer(16,.045,.22,19,34,0xaed0ff)
+    makeStarLayer(2600,.012,.12, 46,90, 0x9ca8d9),
+    makeStarLayer(1100,.020,.22, 38,76, 0xd8dff2),
+    makeStarLayer(220,.036,.48, 30,56, 0xf3f5ff),
+    makeStarLayer(18,.045,.26, 32,56, 0xffd4a8),
+    makeStarLayer(16,.045,.22, 32,56, 0xaed0ff)
   ];
   starLayers.forEach(s=>scene.add(s));
-  const brightStars = makeStarLayer(24,.068,.82,16,28,0xffffff);
+  const brightStars = makeStarLayer(24,.068,.82, 28,50, 0xffffff);
   scene.add(brightStars);
 
   const ambient = new THREE.AmbientLight(p.amb, p.ambI);
@@ -536,13 +604,14 @@ function initGlobe(onReady){
   const skyPaths = ['./assets/sky1.glb','./assets/sky2.glb','./assets/sky3.glb'];
   const skyPath = skyPaths[Math.floor(Math.random()*skyPaths.length)];
 
+  /* ── Sky: scaled larger so camera is further from surface detail ── */
   loader.load(skyPath, (gltf)=>{
     skyGroup.clear();
     skyObject = gltf.scene;
     const box = new THREE.Box3().setFromObject(skyObject);
     const size = box.getSize(new THREE.Vector3());
     const maxDim = Math.max(size.x,size.y,size.z) || 1;
-    const scale = 22 / maxDim;
+    const scale = 38 / maxDim;                        /* ← was 22, now 38 */
     skyObject.scale.setScalar(scale);
     box.setFromObject(skyObject);
     const center = box.getCenter(new THREE.Vector3());
@@ -595,7 +664,7 @@ function initGlobe(onReady){
     const box = new THREE.Box3().setFromObject(globeObject);
     const size = box.getSize(new THREE.Vector3());
     const maxDim = Math.max(size.x,size.y,size.z) || 1;
-    const scale = 3.45 / maxDim;
+    const scale = 4.35 / maxDim;
     globeObject.scale.setScalar(scale);
     box.setFromObject(globeObject);
     const center = box.getCenter(new THREE.Vector3());
@@ -720,6 +789,13 @@ function initGlobe(onReady){
     viewPitch += (targetPitch - viewPitch) * 0.05;
     camera.rotation.y = viewYaw;
     camera.rotation.x = viewPitch;
+
+    /* ── Subtle sky rotation: slow drift + gentle oscillation ── */
+    if(skyObject){
+      skyGroup.rotation.y += 0.000028;                                  /* very slow constant yaw */
+      skyGroup.rotation.x  = Math.sin(time * 0.018) * 0.0055;          /* micro pitch wave */
+      skyGroup.rotation.z  = Math.sin(time * 0.012 + 1.2) * 0.003;     /* micro roll wave */
+    }
 
     if (brightStars.visible) brightStars.material.opacity=0.76+Math.sin(time*0.72)*0.10;
     renderer.render(scene,camera);
