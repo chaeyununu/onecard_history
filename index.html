@@ -269,8 +269,13 @@ function getTodayCard(){
   const mm=String(now.getMonth()+1).padStart(2,'0');
   const dd=String(now.getDate()).padStart(2,'0');
   const todayKey=mm+'-'+dd;
-  let card=CARD_DATA.find(c=>c.dateKey===todayKey);
-  if(card)return card;
+
+  const todayCards=CARD_DATA.filter(c=>c.dateKey===todayKey);
+  if(todayCards.length){
+    const randomIndex=Math.floor(Math.random()*todayCards.length);
+    return todayCards[randomIndex];
+  }
+
   const todayNum=parseInt(mm)*100+parseInt(dd);
   let best=null,bestDist=Infinity;
   for(const c of CARD_DATA){
